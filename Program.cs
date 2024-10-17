@@ -1,31 +1,7 @@
 ﻿
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-
-// Interfaces
-public interface IVehicle
-{
-    string RegistrationNumber { get; }
-    string Manufacturer { get; }
-    string Color { get; }
-    int NumberOfWheels { get; }
-    string GetVehicleInfo();
-}
-
-public interface IUI
-{
-    void ShowMenu();
-}
-
-public interface IHandler
-{
-    void AddGarage(Garage<IVehicle> garage);
-    void ParkVehicle(IVehicle vehicle, Garage<IVehicle> garage);
-    void RetrieveVehicle(string registrationNumber, Garage<IVehicle> garage);
-    void SearchVehicles(string criteria, Garage<IVehicle> garage);
-}
 
 // Basklass, fordon
 public abstract class Vehicle : IVehicle
@@ -111,124 +87,33 @@ public class Boat : Vehicle
     }
 }
 
-// Garage
-public class Garage<T> : IEnumerable<T> where T : IVehicle
-{
-    private T[] vehicles; // Samlar fordon i array
-    private int capacity;
-    private int currentCount;
-
-    public Garage(int capacity)
-    {
-        this.capacity = capacity;
-        vehicles = new T[capacity]; // Skapa array av typen T
-        currentCount = 0;
-    }
-
-    public void Park(T vehicle)
-    {
-        if (currentCount >= capacity)
-        {
-            throw new InvalidOperationException("Garaget är fullt.");
-        }
-        vehicles[currentCount++] = vehicle; // Parkera och öka index
-    }
-
-    public bool Retrieve(string registrationNumber)
-    {
-        var vehicle = vehicles.FirstOrDefault(v => v != null && v.RegistrationNumber.Equals(registrationNumber, StringComparison.OrdinalIgnoreCase));
-        if (vehicle != null)
-        {
-            vehicles[Array.IndexOf(vehicles, vehicle)] = default; // Sätt default i array
-            currentCount--;
-            return true;
-        }
-        return false;
-    }
-
-    public IEnumerable<T> GetAllVehicles()
-    {
-        return vehicles.Where(v => v != null); // Retur, parkerade fordon
-    }
-
-    public IEnumerable<T> SearchVehicles(string criteria)
-    {
-        return vehicles.Where(v => v != null && (
-            v.Manufacturer.IndexOf(criteria, StringComparison.OrdinalIgnoreCase) >= 0 ||
-            v.Color.IndexOf(criteria, StringComparison.OrdinalIgnoreCase) >= 0 ||
-            v.RegistrationNumber.IndexOf(criteria, StringComparison.OrdinalIgnoreCase) >= 0));
-    }
-
-    public void ListVehicleTypes()
-    {
-        var vehicleCounts = new Dictionary<string, int>();
-
-        // Räkna fordon av varje typ
-        foreach (var vehicle in vehicles)
-        {
-            if (vehicle != null)
-            {
-                string vehicleType = vehicle.GetType().Name; // Hämtar typer
-                if (vehicleCounts.ContainsKey(vehicleType))
-                {
-                    vehicleCounts[vehicleType]++;
-                }
-                else
-                {
-                    vehicleCounts[vehicleType] = 1;
-                }
-            }
-        }
-
-        // Skriv ut antalet fordon av varje typ
-        Console.WriteLine("Fordonstyper och antal:");
-        foreach (var kvp in vehicleCounts)
-        {
-            Console.WriteLine($"{kvp.Key}: {kvp.Value}");
-        }
-    }
-
-    public IEnumerator<T> GetEnumerator()
-    {
-        for (int i = 0; i < currentCount; i++)
-        {
-            yield return vehicles[i];
-        }
-    }
-
-    IEnumerator IEnumerable.GetEnumerator()
-    {
-        return GetEnumerator();
-    }
-
-    public int Count => currentCount; // Retur, antal fordon
-}
-
 // GarageHandler
 public class GarageHandler : IHandler
 {
     private List<Garage<IVehicle>> garages;
+    private Garage<IVehicle> currentGarage;
 
     public GarageHandler()
     {
         garages = new List<Garage<IVehicle>>();
     }
 
+    public bool IsFull => currentGarage.IsFull;
+
     public void AddGarage(Garage<IVehicle> garage)
     {
         garages.Add(garage);
     }
 
+    public bool ParkVehicle(IVehicle vehicle)
+    {
+          return  currentGarage.Park(vehicle);
+       
+    }
+
     public void ParkVehicle(IVehicle vehicle, Garage<IVehicle> garage)
     {
-        try
-        {
-            garage.Park(vehicle);
-        }
-        catch (InvalidOperationException)
-        {
-            Console.WriteLine("Garaget är fullt.");
-        }
+        throw new NotImplementedException();
     }
 
     public void RetrieveVehicle(string registrationNumber, Garage<IVehicle> garage)
@@ -401,6 +286,12 @@ public class GarageUI : IUI
 
     private void AddVehicleToGarage()
     {
+        if (garageHandler.IsFull)
+        {
+            Console.WriteLine("garaget är fullt");
+            return;
+        }
+
         Console.WriteLine("Ange registreringsnummer:");
         string regNumber = Console.ReadLine();
         if (string.IsNullOrWhiteSpace(regNumber))
@@ -471,8 +362,12 @@ public class GarageUI : IUI
             Console.WriteLine("Välj garage att parkera fordonet i (index: 0 till {0}):", garages.Count - 1);
             if (int.TryParse(Console.ReadLine(), out int index) && index >= 0 && index < garages.Count)
             {
-                garageHandler.ParkVehicle(vehicle, garages[index]);
+               if( garageHandler.ParkVehicle(vehicle))
                 Console.WriteLine("Fordonet har lagts till i garaget.");
+                else
+                {
+
+                }
             }
             else
             {
@@ -518,7 +413,7 @@ public class GarageUI : IUI
         {
             Console.WriteLine("Ange reg.nr.");
             string regNumber = Console.ReadLine();
-            var vehicles = garages[index].GetAllVehicles().Where(v =>
+            var vehicles = garages[index].Where(v =>
                 v.RegistrationNumber.Equals(regNumber, StringComparison.OrdinalIgnoreCase));
             foreach (var vehicle in vehicles)
             {
